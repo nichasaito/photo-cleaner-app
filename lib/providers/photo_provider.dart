@@ -7,6 +7,9 @@ class PhotoProvider with ChangeNotifier {
   List<PhotoItem> _trashedPhotos = [];
   List<PhotoItem> _keptPhotos = [];
   
+  // เพิ่ม Set สำหรับจำ ID ของรูปทั้งหมดที่ถูกจัดการไปแล้ว (ป้องกันรูปวนกลับมา)
+  final Set<String> _processedPhotoIds = {};
+
   PhotoItem? _lastActionItem;
   String? _lastActionType;
 
@@ -20,10 +23,14 @@ class PhotoProvider with ChangeNotifier {
   List<PhotoItem> get trashedPhotos => _trashedPhotos;
   double get totalMBFreed => _trashedPhotos.fold(0, (sum, item) => sum + item.sizeInMB);
 
-  // ดึงรูปภาพตอนเปิดแอปครั้งแรก (หน้าแรก 200 รูป)
+  // ดึงรูปภาพตอนเปิดแอปครั้งแรก
   Future<void> initPhotos() async {
     _currentPage = 0;
     _hasMore = true;
+    _processedPhotoIds.clear(); // ล้างประวัติเมื่อเริ่มใหม่
+    _trashedPhotos.clear();
+    _keptPhotos.clear();
+
     final assets = await PhotoService.fetchPhotos(page: _currentPage, size: 200);
     
     _allPhotos = await Future.wait(assets.map((asset) async {
@@ -67,8 +74,9 @@ class PhotoProvider with ChangeNotifier {
         );
       }));
 
+      // กรองเอาเฉพาะรูปที่ไม่เคยปัด และไม่อยู่ในลิสต์ปัจจุบัน
       for (var item in newItems) {
-        if (!_allPhotos.any((p) => p.id == item.id)) {
+        if (!_processedPhotoIds.contains(item.id) && !_allPhotos.any((p) => p.id == item.id)) {
           _allPhotos.add(item);
         }
       }
@@ -78,10 +86,11 @@ class PhotoProvider with ChangeNotifier {
     notifyListeners();
   }
 
-  // Filter & Sort รูปภาพตามเงื่อนไข
+  // Filter & Sort รูปภาพ (กรองรูปที่เคยปัดไปแล้วออก 100%)
   List<PhotoItem> getFilteredAndSortedPhotos(PhotoCategory category, String sortBy) {
     List<PhotoItem> filtered = _allPhotos.where((p) {
-      if (_trashedPhotos.any((t) => t.id == p.id) || _keptPhotos.any((k) => k.id == p.id)) {
+      // เช็คว่าอยู่ในประวัติรูปที่เคยถูกจัดการแล้วหรือไม่
+      if (_processedPhotoIds.contains(p.id)) {
         return false;
       }
       if (category == PhotoCategory.all) return true;
@@ -105,7 +114,9 @@ class PhotoProvider with ChangeNotifier {
     return filtered;
   }
 
+  // ปัดลงถังขยะ
   void trashPhoto(PhotoItem item) {
+    _processedPhotoIds.add(item.id); // บันทึกว่ารูปนี้โดนจัดการแล้ว
     _allPhotos.removeWhere((p) => p.id == item.id);
     _trashedPhotos.add(item);
     _lastActionItem = item;
@@ -113,7 +124,9 @@ class PhotoProvider with ChangeNotifier {
     notifyListeners();
   }
 
+  // ปัดเก็บไว้
   void keepPhoto(PhotoItem item) {
+    _processedPhotoIds.add(item.id); // บันทึกว่ารูปนี้โดนจัดการแล้ว
     _allPhotos.removeWhere((p) => p.id == item.id);
     _keptPhotos.add(item);
     _lastActionItem = item;
@@ -121,8 +134,13 @@ class PhotoProvider with ChangeNotifier {
     notifyListeners();
   }
 
+  // ยกเลิกการปัดล่าสุด (Undo)
   void undoLastAction() {
     if (_lastActionItem == null) return;
+    
+    // ถอน ID ออกจากประวัติที่ถูกจัดการ
+    _processedPhotoIds.remove(_lastActionItem!.id);
+
     if (_lastActionType == 'trash') {
       _trashedPhotos.removeWhere((p) => p.id == _lastActionItem!.id);
       _allPhotos.insert(0, _lastActionItem!);
@@ -135,13 +153,18 @@ class PhotoProvider with ChangeNotifier {
     notifyListeners();
   }
 
+  // กู้คืนรูปภาพจากถังขยะ
   void restorePhotos(List<String> ids) {
+    for (var id in ids) {
+      _processedPhotoIds.remove(id); // ปลดการบล็อก ID เพื่อให้นำกลับมาแสดงใหม่ได้
+    }
     final toRestore = _trashedPhotos.where((p) => ids.contains(p.id)).toList();
     _trashedPhotos.removeWhere((p) => ids.contains(p.id));
     _allPhotos.addAll(toRestore);
     notifyListeners();
   }
 
+  // ลบถาวร
   Future<void> confirmPermanentDelete(List<String> idsToDelete) async {
     final deletedIds = await PhotoService.deletePhotos(idsToDelete);
     _trashedPhotos.removeWhere((item) => deletedIds.contains(item.id));
