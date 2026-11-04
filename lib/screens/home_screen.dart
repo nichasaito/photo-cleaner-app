@@ -5,6 +5,7 @@ import 'package:photo_manager_image_provider/photo_manager_image_provider.dart';
 import '../models/photo_item.dart';
 import '../providers/photo_provider.dart';
 import 'trash_screen.dart';
+import 'package:photo_manager/photo_manager.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -241,10 +242,7 @@ class _HomeScreenState extends State<HomeScreen> {
           AssetEntityImage(
             photo.entity,
             isOriginal: false,
-            thumbnailOption: const ThumbnailOption(
-              size: ThumbnailSize(1500, 1500),
-              format: ThumbnailFormat.jpeg,
-            ),
+            thumbnailSize: const ThumbnailSize(1500, 1500),
             fit: BoxFit.cover,
             loadingBuilder: (context, child, loadingProgress) {
               if (loadingProgress == null) return child;
