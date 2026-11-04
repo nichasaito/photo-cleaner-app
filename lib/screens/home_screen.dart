@@ -47,7 +47,7 @@ class _HomeScreenState extends State<HomeScreen> {
             _buildSortBar(photos.length),
             Expanded(
               child: photos.isEmpty
-                  ? _buildEmptyState()
+                  ? _buildEmptyState(photoProvider)
                   : CardSwiper(
                       controller: _swiperController,
                       cardsCount: photos.length,
@@ -107,32 +107,49 @@ class _HomeScreenState extends State<HomeScreen> {
               ),
             ],
           ),
-          InkWell(
-            onTap: () {
-              Navigator.push(context, MaterialPageRoute(builder: (_) => const TrashScreen()));
-            },
-            child: Stack(
-              alignment: Alignment.topRight,
-              children: [
-                Container(
-                  padding: const EdgeInsets.all(12),
-                  decoration: BoxDecoration(
-                    color: Colors.white.withOpacity(0.1),
-                    shape: BoxShape.circle,
-                  ),
-                  child: const Icon(Icons.delete_outline_rounded, color: Colors.white, size: 24),
-                ),
-                if (provider.trashedPhotos.isNotEmpty)
-                  CircleAvatar(
-                    radius: 9,
-                    backgroundColor: Colors.redAccent,
-                    child: Text(
-                      '${provider.trashedPhotos.length}',
-                      style: const TextStyle(color: Colors.white, fontSize: 10, fontWeight: FontWeight.bold),
+          Row(
+            children: [
+              // ปุ่ม Refresh / Load More รูปเพิ่มเติม
+              IconButton(
+                onPressed: provider.isLoadingMore ? null : () => provider.loadMorePhotos(),
+                icon: provider.isLoadingMore
+                    ? const SizedBox(
+                        width: 20,
+                        height: 20,
+                        child: CircularProgressIndicator(strokeWidth: 2, color: Colors.blueAccent),
+                      )
+                    : const Icon(Icons.refresh_rounded, color: Colors.white, size: 24),
+                tooltip: 'ดึงรูปภาพเพิ่มเติม',
+              ),
+              const SizedBox(width: 4),
+              InkWell(
+                onTap: () {
+                  Navigator.push(context, MaterialPageRoute(builder: (_) => const TrashScreen()));
+                },
+                child: Stack(
+                  alignment: Alignment.topRight,
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.all(12),
+                      decoration: BoxDecoration(
+                        color: Colors.white.withOpacity(0.1),
+                        shape: BoxShape.circle,
+                      ),
+                      child: const Icon(Icons.delete_outline_rounded, color: Colors.white, size: 24),
                     ),
-                  ),
-              ],
-            ),
+                    if (provider.trashedPhotos.isNotEmpty)
+                      CircleAvatar(
+                        radius: 9,
+                        backgroundColor: Colors.redAccent,
+                        child: Text(
+                          '${provider.trashedPhotos.length}',
+                          style: const TextStyle(color: Colors.white, fontSize: 10, fontWeight: FontWeight.bold),
+                        ),
+                      ),
+                  ],
+                ),
+              ),
+            ],
           ),
         ],
       ),
@@ -220,10 +237,17 @@ class _HomeScreenState extends State<HomeScreen> {
       child: Stack(
         fit: StackFit.expand,
         children: [
+          // ใช้ isOriginal: true เพื่อให้ภาพแสดงผลคมชัดสูงเต็มประสิทธิภาพ
           AssetEntityImage(
             photo.entity,
-            isOriginal: false,
+            isOriginal: true,
             fit: BoxFit.cover,
+            loadingBuilder: (context, child, loadingProgress) {
+              if (loadingProgress == null) return child;
+              return const Center(
+                child: CircularProgressIndicator(color: Colors.blueAccent),
+              );
+            },
           ),
           Positioned(
             top: 16,
@@ -232,7 +256,7 @@ class _HomeScreenState extends State<HomeScreen> {
             child: Container(
               padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
               decoration: BoxDecoration(
-                color: Colors.black.withOpacity(0.4),
+                color: Colors.black.withOpacity(0.5),
                 borderRadius: BorderRadius.circular(16),
               ),
               child: Row(
@@ -246,7 +270,7 @@ class _HomeScreenState extends State<HomeScreen> {
                   ),
                   Text(
                     '${photo.createDateTime.day}/${photo.createDateTime.month}/${photo.createDateTime.year}',
-                    style: TextStyle(color: Colors.white.withOpacity(0.8), fontSize: 12),
+                    style: TextStyle(color: Colors.white.withOpacity(0.9), fontSize: 12),
                   ),
                 ],
               ),
@@ -346,16 +370,36 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
-  Widget _buildEmptyState() {
-    return const Center(
+  Widget _buildEmptyState(PhotoProvider provider) {
+    return Center(
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          Icon(Icons.check_circle_outline_rounded, size: 80, color: Color(0xFF34D399)),
-          SizedBox(height: 16),
-          Text('จัดการครบทุกรูปแล้ว!', style: TextStyle(color: Colors.white, fontSize: 20, fontWeight: FontWeight.bold)),
-          SizedBox(height: 8),
-          Text('คลังภาพของคุณสะอาดขึ้นเยอะเลย', style: TextStyle(color: Color(0xFF94A3B8))),
+          const Icon(Icons.check_circle_outline_rounded, size: 80, color: Color(0xFF34D399)),
+          const SizedBox(height: 16),
+          const Text('จัดการรูปชุดนี้ครบแล้ว!', style: TextStyle(color: Colors.white, fontSize: 20, fontWeight: FontWeight.bold)),
+          const SizedBox(height: 8),
+          const Text('คลังภาพของคุณสะอาดขึ้นเยอะเลย', style: TextStyle(color: Color(0xFF94A3B8))),
+          const SizedBox(height: 24),
+          ElevatedButton.icon(
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Colors.blueAccent,
+              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+            ),
+            onPressed: provider.isLoadingMore ? null : () => provider.loadMorePhotos(),
+            icon: provider.isLoadingMore
+                ? const SizedBox(
+                    width: 18,
+                    height: 18,
+                    child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+                  )
+                : const Icon(Icons.download_rounded, color: Colors.white),
+            label: Text(
+              provider.isLoadingMore ? 'กำลังดึงรูปภาพ...' : 'ดึงรูปภาพเพิ่มอีก 200 รูป',
+              style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+            ),
+          ),
         ],
       ),
     );

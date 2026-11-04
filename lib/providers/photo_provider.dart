@@ -10,12 +10,22 @@ class PhotoProvider with ChangeNotifier {
   PhotoItem? _lastActionItem;
   String? _lastActionType;
 
+  // Pagination & Loading States
+  int _currentPage = 0;
+  bool _isLoadingMore = false;
+  bool _hasMore = true;
+
+  bool get isLoadingMore => _isLoadingMore;
+  bool get hasMore => _hasMore;
   List<PhotoItem> get trashedPhotos => _trashedPhotos;
   double get totalMBFreed => _trashedPhotos.fold(0, (sum, item) => sum + item.sizeInMB);
 
-  // ดึงรูปภาพทั้งหมดตอนเริ่มแอป
+  // ดึงรูปภาพตอนเปิดแอปครั้งแรก (หน้าแรก 200 รูป)
   Future<void> initPhotos() async {
-    final assets = await PhotoService.fetchPhotos();
+    _currentPage = 0;
+    _hasMore = true;
+    final assets = await PhotoService.fetchPhotos(page: _currentPage, size: 200);
+    
     _allPhotos = await Future.wait(assets.map((asset) async {
       final file = await asset.file;
       final size = await file?.length() ?? 0;
@@ -31,7 +41,44 @@ class PhotoProvider with ChangeNotifier {
     notifyListeners();
   }
 
-  // Filter & Sort รูปภาพสำหรับแสดงใน Card Swiper
+  // กดปุ่ม Refresh / Load More เพื่อดึงรูปภาพเพิ่มเติมอีก 200 รูป
+  Future<void> loadMorePhotos() async {
+    if (_isLoadingMore || !_hasMore) return;
+
+    _isLoadingMore = true;
+    notifyListeners();
+
+    _currentPage++;
+    final newAssets = await PhotoService.fetchPhotos(page: _currentPage, size: 200);
+
+    if (newAssets.isEmpty) {
+      _hasMore = false;
+    } else {
+      final newItems = await Future.wait(newAssets.map((asset) async {
+        final file = await asset.file;
+        final size = await file?.length() ?? 0;
+        return PhotoItem(
+          id: asset.id,
+          entity: asset,
+          sizeInBytes: size,
+          createDateTime: asset.createDateSecond != null
+              ? DateTime.fromMillisecondsSinceEpoch(asset.createDateSecond! * 1000)
+              : DateTime.now(),
+        );
+      }));
+
+      for (var item in newItems) {
+        if (!_allPhotos.any((p) => p.id == item.id)) {
+          _allPhotos.add(item);
+        }
+      }
+    }
+
+    _isLoadingMore = false;
+    notifyListeners();
+  }
+
+  // Filter & Sort รูปภาพตามเงื่อนไข
   List<PhotoItem> getFilteredAndSortedPhotos(PhotoCategory category, String sortBy) {
     List<PhotoItem> filtered = _allPhotos.where((p) {
       if (_trashedPhotos.any((t) => t.id == p.id) || _keptPhotos.any((k) => k.id == p.id)) {

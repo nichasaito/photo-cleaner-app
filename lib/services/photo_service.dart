@@ -8,7 +8,7 @@ class PhotoService {
   }
 
   // ดึงรูปภาพจากคลังภาพในเครื่อง
-  static Future<List<AssetEntity>> fetchPhotos({int page = 0, int size = 100}) async {
+  static Future<List<AssetEntity>> fetchPhotos({int page = 0, int size = 1000}) async {
     final isAuth = await requestPermission();
     if (!isAuth) return [];
 
