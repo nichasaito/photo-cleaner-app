@@ -240,7 +240,11 @@ class _HomeScreenState extends State<HomeScreen> {
           // ใช้ isOriginal: true เพื่อให้ภาพแสดงผลคมชัดสูงเต็มประสิทธิภาพ
           AssetEntityImage(
             photo.entity,
-            isOriginal: true,
+            isOriginal: false,
+            thumbnailOption: const ThumbnailOption(
+              size: ThumbnailSize(1500, 1500),
+              format: ThumbnailFormat.jpeg,
+            ),
             fit: BoxFit.cover,
             loadingBuilder: (context, child, loadingProgress) {
               if (loadingProgress == null) return child;
