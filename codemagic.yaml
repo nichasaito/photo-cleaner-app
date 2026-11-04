@@ -1,0 +1,23 @@
+workflows:
+  ios-automatic-sdk:
+    name: iOS Unsigned IPA Build
+    max_build_duration: 60
+    instance_type: mac_mini_m1
+    environment:
+      flutter: stable
+      xcode: latest
+      cocoapods: default
+    scripts:
+      - name: Set up dependencies
+        script: |
+          flutter packages pub get
+      - name: Build iOS App (.app)
+        script: |
+          flutter build ios --release --no-codesign
+      - name: Package .ipa file
+        script: |
+          mkdir -p Payload
+          mv build/ios/iphoneos/Runner.app Payload/
+          zip -r photo_cleaner_app.ipa Payload
+    artifacts:
+      - "*.ipa"
